@@ -43,4 +43,4 @@ export interface UsageStat {
   updated_at: string;
 }
 
-export type Page = "dashboard" | "providers" | "logs" | "settings" | "docs";
+export type Page = "dashboard" | "providers" | "requestLogs" | "settings" | "apiDocs" | "playground";

@@ -8,11 +8,33 @@ import {
   Zap,
   Server,
   Cpu,
+  DollarSign,
+  Heart,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { useApp } from "@/contexts/AppContext";
+import { LineChart, BarChart, DonutChart } from "@/components/Charts";
 import type { Provider, RequestLog, UsageStat } from "@/types";
 
+const DONUT_COLORS = ["#06b6d4", "#3b82f6", "#8b5cf6", "#10b981", "#f59e0b", "#ef4444", "#ec4899", "#6366f1"];
+
+const COST_PER_1K: Record<string, number> = {
+  "OpenAI": 0.005,
+  "Anthropic": 0.003,
+  "Google Gemini": 0.001,
+  "Groq": 0.0001,
+  "Cohere": 0.002,
+  "OpenRouter": 0.002,
+  "ChatGPT Browser": 0,
+  "Gemini Browser": 0,
+};
+
 export function Dashboard() {
+  const { t, theme } = useApp();
+  const isDark = theme === "dark";
+  const cardBg = isDark ? "bg-slate-900/60 border-slate-800" : "bg-white/70 border-slate-200";
+  const textSecondary = isDark ? "text-slate-500" : "text-slate-500";
+
   const [providers, setProviders] = useState<Provider[]>([]);
   const [recentLogs, setRecentLogs] = useState<RequestLog[]>([]);
   const [stats, setStats] = useState<UsageStat[]>([]);
@@ -31,9 +53,9 @@ export function Dashboard() {
         supabase.from("usage_stats").select("*").order("date", { ascending: false }).limit(30),
       ]);
 
-      setProviders(provData as Provider[] ?? []);
-      setRecentLogs(logData as RequestLog[] ?? []);
-      setStats(statData as UsageStat[] ?? []);
+      setProviders((provData as Provider[]) ?? []);
+      setRecentLogs((logData as RequestLog[]) ?? []);
+      setStats((statData as UsageStat[]) ?? []);
 
       const { count } = await supabase.from("request_logs").select("*", { count: "exact", head: true });
       setTotalRequests(count ?? 0);
@@ -60,22 +82,30 @@ export function Dashboard() {
 
   const successRate = totalRequests > 0 ? ((totalRequests - totalErrors) / totalRequests) * 100 : 100;
   const activeProviders = providers.filter((p) => p.status === "active").length;
+  const estCost = Object.entries(
+    stats.reduce((acc, s) => {
+      const rate = COST_PER_1K[s.provider] ?? 0.001;
+      acc[s.provider] = (acc[s.provider] ?? 0) + (s.tokens_used / 1000) * rate;
+      return acc;
+    }, {} as Record<string, number>)
+  ).reduce((sum, [, v]) => sum + v, 0);
 
   const statCards = [
-    { label: "Total Requests", value: totalRequests.toLocaleString(), icon: Activity, color: "cyan", change: "" },
-    { label: "Success Rate", value: `${successRate.toFixed(1)}%`, icon: CheckCircle2, color: "emerald", change: `${totalErrors} errors` },
-    { label: "Avg Response", value: `${avgResponseTime.toFixed(2)}s`, icon: Clock, color: "amber", change: "" },
-    { label: "Total Tokens", value: totalTokens.toLocaleString(), icon: Cpu, color: "violet", change: "" },
+    { label: t("totalRequests"), value: totalRequests.toLocaleString(), icon: Activity, color: "cyan" },
+    { label: t("successRate"), value: `${successRate.toFixed(1)}%`, icon: CheckCircle2, color: "emerald", sub: `${totalErrors} ${t("errors")}` },
+    { label: t("avgResponse"), value: `${avgResponseTime.toFixed(2)}s`, icon: Clock, color: "amber" },
+    { label: t("totalTokens"), value: totalTokens.toLocaleString(), icon: Cpu, color: "violet" },
+    { label: t("estCost"), value: `$${estCost.toFixed(4)}`, icon: DollarSign, color: "emerald" },
   ];
 
   const colorMap: Record<string, string> = {
-    cyan: "from-cyan-500/20 to-cyan-500/5 text-cyan-400 border-cyan-500/20",
-    emerald: "from-emerald-500/20 to-emerald-500/5 text-emerald-400 border-emerald-500/20",
-    amber: "from-amber-500/20 to-amber-500/5 text-amber-400 border-amber-500/20",
-    violet: "from-violet-500/20 to-violet-500/5 text-violet-400 border-violet-500/20",
+    cyan: isDark ? "from-cyan-500/20 to-cyan-500/5 text-cyan-400 border-cyan-500/20" : "from-cyan-500/10 to-cyan-500/5 text-cyan-600 border-cyan-500/20",
+    emerald: isDark ? "from-emerald-500/20 to-emerald-500/5 text-emerald-400 border-emerald-500/20" : "from-emerald-500/10 to-emerald-500/5 text-emerald-600 border-emerald-500/20",
+    amber: isDark ? "from-amber-500/20 to-amber-500/5 text-amber-400 border-amber-500/20" : "from-amber-500/10 to-amber-500/5 text-amber-600 border-amber-500/20",
+    violet: isDark ? "from-violet-500/20 to-violet-500/5 text-violet-400 border-violet-500/20" : "from-violet-500/10 to-violet-500/5 text-violet-600 border-violet-500/20",
   };
 
-  // Build chart data from stats - last 7 days
+  // Last 7 days chart data
   const last7Days = Array.from({ length: 7 }, (_, i) => {
     const d = new Date();
     d.setDate(d.getDate() - (6 - i));
@@ -85,45 +115,59 @@ export function Dashboard() {
   const chartData = last7Days.map((date) => {
     const dayStats = stats.filter((s) => s.date === date);
     return {
-      date,
-      requests: dayStats.reduce((sum, s) => sum + s.requests_count, 0),
-      tokens: dayStats.reduce((sum, s) => sum + s.tokens_used, 0),
+      label: new Date(date).toLocaleDateString("en", { weekday: "short" }),
+      value: dayStats.reduce((sum, s) => sum + s.requests_count, 0),
     };
   });
 
-  const maxRequests = Math.max(...chartData.map((d) => d.requests), 1);
-
-  // Provider usage breakdown
-  const providerUsage = new Map<string, number>();
-  stats.forEach((s) => {
-    providerUsage.set(s.provider, (providerUsage.get(s.provider) ?? 0) + s.requests_count);
+  const tokenChartData = last7Days.map((date) => {
+    const dayStats = stats.filter((s) => s.date === date);
+    return {
+      label: new Date(date).toLocaleDateString("en", { weekday: "short" }),
+      value: dayStats.reduce((sum, s) => sum + s.tokens_used, 0),
+    };
   });
-  const providerUsageList = Array.from(providerUsage.entries()).sort((a, b) => b[1] - a[1]);
-  const totalProviderUsage = providerUsageList.reduce((sum, [, count]) => sum + count, 0);
+
+  // Provider usage donut
+  const providerUsageMap = new Map<string, number>();
+  stats.forEach((s) => {
+    providerUsageMap.set(s.provider, (providerUsageMap.get(s.provider) ?? 0) + s.requests_count);
+  });
+  const donutData = Array.from(providerUsageMap.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 8)
+    .map(([label, value], i) => ({ label, value, color: DONUT_COLORS[i % DONUT_COLORS.length] }));
+  const totalDonutValue = donutData.reduce((sum, d) => sum + d.value, 0);
+
+  // Provider health
+  const providerHealth = providers.map((p) => {
+    const pStats = stats.filter((s) => s.provider === p.name);
+    const total = pStats.reduce((sum, s) => sum + s.requests_count, 0);
+    const errors = pStats.reduce((sum, s) => sum + s.error_count, 0);
+    const healthScore = total > 0 ? ((total - errors) / total) * 100 : 100;
+    return { name: p.name, status: p.status, healthScore, total, errors };
+  });
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-slide-up">
       <div>
-        <h1 className="text-2xl font-bold">Dashboard</h1>
-        <p className="text-slate-500 text-sm mt-1">Gateway overview and analytics</p>
+        <h1 className={`text-2xl font-bold ${isDark ? "text-slate-100" : "text-slate-900"}`}>{t("dashboardTitle")}</h1>
+        <p className={`text-sm mt-1 ${textSecondary}`}>{t("dashboardSubtitle")}</p>
       </div>
 
       {/* Stat cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         {statCards.map((card) => {
           const Icon = card.icon;
           return (
-            <div
-              key={card.label}
-              className={`bg-gradient-to-br ${colorMap[card.color]} border rounded-xl p-5 backdrop-blur-sm`}
-            >
+            <div key={card.label} className={`bg-gradient-to-br ${colorMap[card.color]} border rounded-xl p-5 backdrop-blur-xl`}>
               <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-xs text-slate-400 uppercase tracking-wider font-medium">{card.label}</p>
-                  <p className="text-2xl font-bold mt-2 text-white">{card.value}</p>
-                  {card.change && <p className="text-xs text-slate-500 mt-1">{card.change}</p>}
+                <div className="min-w-0">
+                  <p className="text-xs text-slate-400 uppercase tracking-wider font-medium truncate">{card.label}</p>
+                  <p className="text-xl lg:text-2xl font-bold mt-2 text-white truncate">{card.value}</p>
+                  {card.sub && <p className="text-xs text-slate-500 mt-1">{card.sub}</p>}
                 </div>
-                <div className={`p-2.5 rounded-lg bg-gradient-to-br ${colorMap[card.color]}`}>
+                <div className={`p-2.5 rounded-lg bg-gradient-to-br ${colorMap[card.color]} flex-shrink-0`}>
                   <Icon className="w-5 h-5" />
                 </div>
               </div>
@@ -132,144 +176,133 @@ export function Dashboard() {
         })}
       </div>
 
+      {/* Charts row */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Requests chart */}
-        <div className="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-xl p-6">
+        {/* Request activity bar chart */}
+        <div className={`lg:col-span-2 ${cardBg} rounded-xl p-6 backdrop-blur-xl border`}>
           <div className="flex items-center justify-between mb-6">
             <div>
-              <h2 className="font-semibold text-lg">Request Activity</h2>
-              <p className="text-xs text-slate-500 mt-1">Last 7 days</p>
+              <h2 className={`font-semibold text-lg ${isDark ? "text-slate-100" : "text-slate-900"}`}>{t("requestActivity")}</h2>
+              <p className={`text-xs mt-1 ${textSecondary}`}>{t("last7Days")}</p>
             </div>
-            <TrendingUp className="w-5 h-5 text-slate-600" />
+            <TrendingUp className={`w-5 h-5 ${isDark ? "text-slate-600" : "text-slate-400"}`} />
           </div>
-          <div className="flex items-end justify-between gap-3 h-48">
-            {chartData.map((d) => (
-              <div key={d.date} className="flex-1 flex flex-col items-center gap-2">
-                <div className="w-full flex-1 flex items-end">
-                  <div
-                    className="w-full rounded-t-md bg-gradient-to-t from-cyan-600 to-cyan-400 transition-all duration-500 hover:from-cyan-500 hover:to-cyan-300 group relative"
-                    style={{ height: `${(d.requests / maxRequests) * 100}%`, minHeight: d.requests > 0 ? "4px" : "0" }}
-                  >
-                    <div className="opacity-0 group-hover:opacity-100 transition-opacity absolute -top-7 left-1/2 -translate-x-1/2 text-xs text-slate-300 whitespace-nowrap">
-                      {d.requests}
-                    </div>
-                  </div>
-                </div>
-                <span className="text-xs text-slate-500">
-                  {new Date(d.date).toLocaleDateString("en", { weekday: "short" })}
-                </span>
-              </div>
-            ))}
-          </div>
+          <BarChart data={chartData} color={isDark ? "#06b6d4" : "#0891b2"} height={180} />
         </div>
 
-        {/* Provider usage */}
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
-          <div className="flex items-center justify-between mb-6">
+        {/* Provider usage donut */}
+        <div className={`${cardBg} rounded-xl p-6 backdrop-blur-xl border`}>
+          <div className="flex items-center justify-between mb-4">
             <div>
-              <h2 className="font-semibold text-lg">Provider Usage</h2>
-              <p className="text-xs text-slate-500 mt-1">By request count</p>
+              <h2 className={`font-semibold text-lg ${isDark ? "text-slate-100" : "text-slate-900"}`}>{t("providerUsage")}</h2>
+              <p className={`text-xs mt-1 ${textSecondary}`}>{t("byRequestCount")}</p>
             </div>
-            <Server className="w-5 h-5 text-slate-600" />
+            <Server className={`w-5 h-5 ${isDark ? "text-slate-600" : "text-slate-400"}`} />
           </div>
           {loading ? (
-            <div className="space-y-3">
-              {[1, 2, 3].map((i) => (
-                <div key={i} className="h-8 bg-slate-800 rounded-lg animate-pulse" />
-              ))}
-            </div>
-          ) : providerUsageList.length === 0 ? (
-            <p className="text-sm text-slate-500 text-center py-8">No usage data yet</p>
+            <div className="h-40 bg-slate-800/40 rounded-lg animate-pulse" />
+          ) : totalDonutValue === 0 ? (
+            <p className={`text-sm text-center py-12 ${textSecondary}`}>{t("noUsageData")}</p>
           ) : (
-            <div className="space-y-3">
-              {providerUsageList.slice(0, 6).map(([name, count]) => {
-                const pct = totalProviderUsage > 0 ? (count / totalProviderUsage) * 100 : 0;
-                return (
-                  <div key={name}>
-                    <div className="flex items-center justify-between text-sm mb-1">
-                      <span className="text-slate-300">{name}</span>
-                      <span className="text-slate-500 text-xs">{count} req</span>
+            <div className="flex flex-col items-center">
+              <DonutChart data={donutData} size={140} />
+              <div className="w-full mt-4 space-y-1.5">
+                {donutData.slice(0, 5).map((d) => (
+                  <div key={d.label} className="flex items-center justify-between text-sm">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: d.color }} />
+                      <span className={isDark ? "text-slate-300" : "text-slate-700"}>{d.label}</span>
                     </div>
-                    <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
-                      <div
-                        className="h-full rounded-full bg-gradient-to-r from-cyan-500 to-blue-500 transition-all duration-500"
-                        style={{ width: `${pct}%` }}
-                      />
-                    </div>
+                    <span className={`text-xs ${textSecondary}`}>{d.value}</span>
                   </div>
-                );
-              })}
+                ))}
+              </div>
             </div>
           )}
         </div>
       </div>
 
-      {/* Recent requests + active providers */}
+      {/* Token trend + Provider health */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
-          <div className="p-6 border-b border-slate-800">
-            <h2 className="font-semibold text-lg">Recent Requests</h2>
-            <p className="text-xs text-slate-500 mt-1">Latest 10 requests</p>
+        <div className={`lg:col-span-2 ${cardBg} rounded-xl p-6 backdrop-blur-xl border`}>
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className={`font-semibold text-lg ${isDark ? "text-slate-100" : "text-slate-900"}`}>{t("tokenUsageTrend")}</h2>
+              <p className={`text-xs mt-1 ${textSecondary}`}>{t("last7Days")}</p>
+            </div>
+            <Cpu className={`w-5 h-5 ${isDark ? "text-slate-600" : "text-slate-400"}`} />
           </div>
-          <div className="divide-y divide-slate-800">
-            {recentLogs.length === 0 ? (
-              <p className="text-sm text-slate-500 text-center py-12">No requests logged yet</p>
-            ) : (
-              recentLogs.map((log) => (
-                <div key={log.id} className="flex items-center gap-4 px-6 py-3 hover:bg-slate-800/30 transition-colors">
-                  {log.status === "success" ? (
-                    <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-                  ) : (
-                    <XCircle className="w-4 h-4 text-rose-400 flex-shrink-0" />
-                  )}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium text-slate-200">{log.provider}</span>
-                      <span className="text-xs text-slate-500">·</span>
-                      <span className="text-xs text-slate-500">{log.model ?? "unknown"}</span>
-                    </div>
-                    {log.error_message && (
-                      <p className="text-xs text-rose-400/70 truncate mt-0.5">{log.error_message}</p>
-                    )}
-                  </div>
-                  <div className="text-right flex-shrink-0">
-                    <p className="text-xs text-slate-500">
-                      {log.response_time != null ? `${log.response_time.toFixed(2)}s` : "—"}
-                    </p>
-                    <p className="text-xs text-slate-600">
-                      {new Date(log.created_at).toLocaleTimeString("en", { hour: "2-digit", minute: "2-digit" })}
-                    </p>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
+          <LineChart data={tokenChartData} color={isDark ? "#8b5cf6" : "#7c3aed"} height={180} />
         </div>
 
-        {/* Active providers */}
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
-          <div className="flex items-center justify-between mb-6">
+        <div className={`${cardBg} rounded-xl p-6 backdrop-blur-xl border`}>
+          <div className="flex items-center justify-between mb-4">
             <div>
-              <h2 className="font-semibold text-lg">Providers</h2>
-              <p className="text-xs text-slate-500 mt-1">{activeProviders} active</p>
+              <h2 className={`font-semibold text-lg ${isDark ? "text-slate-100" : "text-slate-900"}`}>{t("providerHealth")}</h2>
+              <p className={`text-xs mt-1 ${textSecondary}`}>{activeProviders} {t("active")}</p>
             </div>
-            <Zap className="w-5 h-5 text-slate-600" />
+            <Heart className={`w-5 h-5 ${isDark ? "text-slate-600" : "text-slate-400"}`} />
           </div>
           <div className="space-y-2">
-            {providers.slice(0, 8).map((p) => (
-              <div key={p.id} className="flex items-center justify-between py-2 px-3 rounded-lg bg-slate-800/40">
+            {providerHealth.slice(0, 6).map((p) => (
+              <div key={p.name} className="flex items-center justify-between py-1.5 px-3 rounded-lg bg-slate-100/50 dark:bg-slate-800/40">
                 <div className="flex items-center gap-2">
-                  <div
-                    className={`w-2 h-2 rounded-full ${p.status === "active" ? "bg-emerald-500" : "bg-slate-600"}`}
-                  />
-                  <span className="text-sm text-slate-300">{p.name}</span>
+                  <div className={`w-2 h-2 rounded-full ${p.status === "active" ? "bg-emerald-500" : "bg-slate-400"}`} />
+                  <span className={`text-sm ${isDark ? "text-slate-300" : "text-slate-700"}`}>{p.name}</span>
                 </div>
-                <span className={`text-xs ${p.type === "token_free" ? "text-amber-400" : "text-cyan-400"}`}>
-                  {p.type === "token_free" ? "Free" : "API Key"}
-                </span>
+                <div className="flex items-center gap-2">
+                  <div className="w-16 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full rounded-full ${p.healthScore >= 90 ? "bg-emerald-500" : p.healthScore >= 70 ? "bg-amber-500" : "bg-rose-500"}`}
+                      style={{ width: `${p.healthScore}%` }}
+                    />
+                  </div>
+                  <span className={`text-xs font-mono w-10 text-end ${textSecondary}`}>{p.healthScore.toFixed(0)}%</span>
+                </div>
               </div>
             ))}
           </div>
+        </div>
+      </div>
+
+      {/* Recent requests */}
+      <div className={`${cardBg} rounded-xl overflow-hidden backdrop-blur-xl border`}>
+        <div className={`p-6 border-b ${isDark ? "border-slate-800" : "border-slate-200"}`}>
+          <h2 className={`font-semibold text-lg ${isDark ? "text-slate-100" : "text-slate-900"}`}>{t("recentRequests")}</h2>
+          <p className={`text-xs mt-1 ${textSecondary}`}>{t("latestRequests")}</p>
+        </div>
+        <div className={`divide-y ${isDark ? "divide-slate-800" : "divide-slate-200"}`}>
+          {recentLogs.length === 0 ? (
+            <p className={`text-sm text-center py-12 ${textSecondary}`}>{t("noRequestsLogged")}</p>
+          ) : (
+            recentLogs.map((log) => (
+              <div key={log.id} className="flex items-center gap-4 px-6 py-3 hover:bg-slate-100/50 dark:hover:bg-slate-800/30 transition-colors">
+                {log.status === "success" ? (
+                  <CheckCircle2 className="w-4 h-4 text-emerald-500 flex-shrink-0" />
+                ) : (
+                  <XCircle className="w-4 h-4 text-rose-500 flex-shrink-0" />
+                )}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className={`text-sm font-medium ${isDark ? "text-slate-200" : "text-slate-800"}`}>{log.provider}</span>
+                    <span className={`text-xs ${textSecondary}`}>·</span>
+                    <span className={`text-xs ${textSecondary}`}>{log.model ?? "unknown"}</span>
+                  </div>
+                  {log.error_message && (
+                    <p className="text-xs text-rose-400/70 truncate mt-0.5">{log.error_message}</p>
+                  )}
+                </div>
+                <div className="text-end flex-shrink-0">
+                  <p className={`text-xs ${textSecondary}`}>
+                    {log.response_time != null ? `${log.response_time.toFixed(2)}s` : "—"}
+                  </p>
+                  <p className={`text-xs ${isDark ? "text-slate-600" : "text-slate-400"}`}>
+                    {new Date(log.created_at).toLocaleTimeString(lang === "fa" ? "fa" : "en", { hour: "2-digit", minute: "2-digit" })}
+                  </p>
+                </div>
+              </div>
+            ))
+          )}
         </div>
       </div>
     </div>

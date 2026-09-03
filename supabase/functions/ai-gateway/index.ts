@@ -104,10 +104,22 @@ async function logRequest(
   }
 }
 
+function buildHeaders(provider: Provider): Record<string, string> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${provider.api_key}`,
+  };
+  if (provider.name === "OpenRouter") {
+    headers["HTTP-Referer"] = "https://aigateway.hooshedigital.ir";
+    headers["X-Title"] = "AI Gateway";
+  }
+  return headers;
+}
+
 async function callProvider(
   provider: Provider,
   body: ChatRequest
-): Promise<{ ok: boolean; data?: unknown; error?: string; tokens?: number }> {
+): Promise<{ ok: boolean; data?: unknown; error?: string; tokens?: number; stream?: ReadableStream<Uint8Array> }> {
   if (provider.type === "token_free") {
     return {
       ok: false,
@@ -123,30 +135,28 @@ async function callProvider(
   const url = `${baseUrl}/chat/completions`;
 
   try {
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${provider.api_key}`,
+    const headers = buildHeaders(provider);
+    const requestBody = {
+      model: body.model,
+      messages: body.messages,
+      temperature: body.temperature ?? 0.7,
+      max_tokens: body.max_tokens ?? 4096,
+      stream: body.stream ?? false,
     };
-
-    if (provider.name === "OpenRouter") {
-      headers["HTTP-Referer"] = "https://aigateway.hooshedigital.ir";
-      headers["X-Title"] = "AI Gateway";
-    }
 
     const response = await fetch(url, {
       method: "POST",
       headers,
-      body: JSON.stringify({
-        model: body.model,
-        messages: body.messages,
-        temperature: body.temperature ?? 0.7,
-        max_tokens: body.max_tokens ?? 4096,
-      }),
+      body: JSON.stringify(requestBody),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
       return { ok: false, error: `Provider error (${response.status}): ${errorText}` };
+    }
+
+    if (body.stream && response.body) {
+      return { ok: true, stream: response.body, tokens: 0 };
     }
 
     const data = await response.json();
@@ -180,6 +190,33 @@ async function handleChatCompletions(body: ChatRequest): Promise<Response> {
 
     if (result.ok) {
       await logRequest(provider.name, body.model, "success", elapsed, result.tokens ?? 0);
+
+      if (result.stream) {
+        const encoder = new TextEncoder();
+        const stream = new ReadableStream({
+          async start(controller) {
+            const reader = result.stream!.getReader();
+            try {
+              while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                controller.enqueue(value);
+              }
+            } finally {
+              controller.close();
+            }
+          },
+        });
+        return new Response(stream, {
+          headers: {
+            ...corsHeaders,
+            "Content-Type": "text/event-stream",
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+          },
+        });
+      }
+
       return new Response(JSON.stringify(result.data), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -237,6 +274,7 @@ async function handleStatus(): Promise<Response> {
       active_providers: providers.length,
       total_requests: totalRequests ?? 0,
       total_errors: totalErrors ?? 0,
+      streaming_enabled: true,
       providers: providers.map((p) => ({
         name: p.name,
         type: p.type,
