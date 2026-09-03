@@ -1,0 +1,46 @@
+export interface Provider {
+  id: string;
+  name: string;
+  type: "token_free" | "api_key";
+  status: "active" | "inactive";
+  api_key: string | null;
+  base_url: string | null;
+  models: string[];
+  priority: number;
+  config: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Setting {
+  id: string;
+  key: string;
+  value: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RequestLog {
+  id: string;
+  provider: string;
+  model: string | null;
+  status: "success" | "error";
+  response_time: number | null;
+  tokens_used: number;
+  error_message: string | null;
+  created_at: string;
+}
+
+export interface UsageStat {
+  id: string;
+  provider: string;
+  date: string;
+  requests_count: number;
+  success_count: number;
+  error_count: number;
+  tokens_used: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export type Page = "dashboard" | "providers" | "logs" | "settings" | "docs";
