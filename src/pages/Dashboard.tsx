@@ -30,7 +30,7 @@ const COST_PER_1K: Record<string, number> = {
 };
 
 export function Dashboard() {
-  const { t, theme } = useApp();
+  const { t, theme, lang } = useApp();
   const isDark = theme === "dark";
   const cardBg = isDark ? "bg-slate-900/60 border-slate-800" : "bg-white/70 border-slate-200";
   const textSecondary = isDark ? "text-slate-500" : "text-slate-500";
