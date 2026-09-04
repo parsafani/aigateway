@@ -14,6 +14,8 @@ import {
   FlaskConical,
   Users,
   ShieldCheck,
+  Globe,
+  ShieldAlert,
 } from "lucide-react";
 import type { Page } from "@/types";
 import type { TranslationKey } from "@/i18n";
@@ -28,12 +30,16 @@ import { ApiDocs } from "@/pages/ApiDocs";
 import { Playground } from "@/pages/Playground";
 import { Users as UsersPage } from "@/pages/Users";
 import { AuditLogs } from "@/pages/AuditLogs";
+import { Sessions } from "@/pages/Sessions";
+import { RiskMonitor } from "@/pages/RiskMonitor";
 
 const navItems: { id: Page; labelKey: TranslationKey; icon: typeof LayoutDashboard }[] = [
   { id: "dashboard", labelKey: "dashboard", icon: LayoutDashboard },
   { id: "providers", labelKey: "providers", icon: Server },
   { id: "requestLogs", labelKey: "requestLogs", icon: ScrollText },
   { id: "playground", labelKey: "playground", icon: FlaskConical },
+  { id: "sessions", labelKey: "sessions", icon: Globe },
+  { id: "riskMonitor", labelKey: "riskMonitor", icon: ShieldAlert },
   { id: "users", labelKey: "users", icon: Users },
   { id: "auditLogs", labelKey: "auditLogs", icon: ShieldCheck },
   { id: "apiDocs", labelKey: "apiDocs", icon: Code2 },
@@ -158,6 +164,8 @@ function AppContent() {
           {page === "providers" && <Providers />}
           {page === "requestLogs" && <Logs />}
           {page === "playground" && <Playground />}
+          {page === "sessions" && <Sessions />}
+          {page === "riskMonitor" && <RiskMonitor />}
           {page === "users" && <UsersPage />}
           {page === "auditLogs" && <AuditLogs />}
           {page === "apiDocs" && <ApiDocs />}

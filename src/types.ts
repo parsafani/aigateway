@@ -73,4 +73,56 @@ export interface Notification {
   created_at: string;
 }
 
-export type Page = "dashboard" | "providers" | "requestLogs" | "settings" | "apiDocs" | "playground" | "users" | "auditLogs";
+export interface BrowserSession {
+  id: string;
+  provider: string;
+  token: string;
+  status: "active" | "expired" | "rotating" | "quarantined" | "failed";
+  health_score: number;
+  requests_count: number;
+  last_used: string | null;
+  last_checked: string;
+  expires_at: string | null;
+  user_agent: string | null;
+  ip_address: string | null;
+  metadata: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RiskScore {
+  id: string;
+  provider: string;
+  risk_level: "low" | "medium" | "high" | "critical";
+  risk_score: number;
+  success_rate: number;
+  avg_response_time: number;
+  error_pattern_score: number;
+  detection_signals: number;
+  quarantined: boolean;
+  calculated_at: string;
+  created_at: string;
+}
+
+export interface AlertConfig {
+  id: string;
+  key: string;
+  value: string | null;
+  enabled: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface UsagePattern {
+  id: string;
+  provider: string;
+  hour_bucket: string;
+  request_count: number;
+  success_count: number;
+  avg_response_time: number;
+  unique_models: number;
+  uniqueness_score: number;
+  created_at: string;
+}
+
+export type Page = "dashboard" | "providers" | "requestLogs" | "settings" | "apiDocs" | "playground" | "users" | "auditLogs" | "sessions" | "riskMonitor";
