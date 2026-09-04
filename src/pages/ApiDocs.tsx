@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Copy, Check, Terminal, Code2, Zap } from "lucide-react";
+import { Copy, Check, Terminal, Code2, Zap, HelpCircle, AlertTriangle, ChevronDown } from "lucide-react";
 import { useApp } from "@/contexts/AppContext";
 
 export function ApiDocs() {
@@ -91,6 +91,26 @@ echo $response["choices"][0]["message"]["content"];`,
   };
 
   const [activeTab, setActiveTab] = useState<string>("curl");
+  const [openFaq, setOpenFaq] = useState<number | null>(0);
+  const [openIssue, setOpenIssue] = useState<number | null>(0);
+
+  const faqItems = [
+    { q: "How do I get an access code?", a: "The access code is configured in the Settings page. The default code is set during gateway initialization and can be changed anytime." },
+    { q: "Which models are supported?", a: "The gateway supports any model offered by the configured providers. This includes GPT-4o, Claude 3.5, Gemini, Llama, and more. See the Providers page for the full list." },
+    { q: "Is the API compatible with the OpenAI SDK?", a: "Yes. The gateway implements the OpenAI Chat Completions API format. Any OpenAI-compatible client can connect by setting the base URL and using the access code as the API key." },
+    { q: "What happens when a provider fails?", a: "If a provider returns an error or hits a rate limit, the gateway automatically falls back to the next provider in priority order that supports the requested model." },
+    { q: "Can I use streaming responses?", a: "Yes, the gateway supports Server-Sent Events (SSE) streaming. Set \"stream\": true in your request body to receive streamed chunks." },
+    { q: "How is usage tracked?", a: "Every request is logged with provider, model, response time, token count, and status. Daily aggregated statistics are available on the Dashboard." },
+  ];
+
+  const troubleshootingItems = [
+    { problem: "401 Unauthorized", solution: "Check that your Authorization header includes a valid Bearer token matching the access code in Settings." },
+    { problem: "503 No provider available", solution: "No active provider supports the requested model. Activate a provider that offers this model, or try a different model." },
+    { problem: "429 Rate limit exceeded", solution: "You have exceeded the per-minute rate limit configured in Settings. Wait a moment and retry, or increase the limit." },
+    { problem: "Timeout errors", solution: "If a provider takes too long, the gateway falls back to the next one. Check provider health on the Dashboard." },
+    { problem: "Model not found", solution: "The requested model is not in any active provider's model list. Check the Providers page to see which models are available." },
+  ];
+
   const fallbackSteps = [
     { step: "1", titleKey: "priorityOrder", descKey: "priorityOrderDesc" },
     { step: "2", titleKey: "modelMatching", descKey: "modelMatchingDesc" },
@@ -197,6 +217,64 @@ echo $response["choices"][0]["message"]["content"];`,
                 <h4 className={`text-sm font-medium ${isDark ? "text-slate-200" : "text-slate-800"}`}>{t(item.titleKey)}</h4>
                 <p className={`text-sm mt-0.5 ${isDark ? "text-slate-500" : "text-slate-500"}`}>{t(item.descKey)}</p>
               </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* FAQ */}
+      <div className={`${cardBg} rounded-xl border backdrop-blur-xl overflow-hidden`}>
+        <div className={`p-6 border-b ${isDark ? "border-slate-800" : "border-slate-200"}`}>
+          <div className="flex items-center gap-2">
+            <HelpCircle className="w-5 h-5 text-slate-500" />
+            <h2 className={`font-semibold text-lg ${isDark ? "text-slate-100" : "text-slate-900"}`}>{t("faq")}</h2>
+          </div>
+          <p className={`text-xs mt-1 ${isDark ? "text-slate-500" : "text-slate-500"}`}>{t("faqDesc")}</p>
+        </div>
+        <div className={`divide-y ${isDark ? "divide-slate-800" : "divide-slate-200"}`}>
+          {faqItems.map((item, i) => (
+            <div key={i}>
+              <button
+                onClick={() => setOpenFaq(openFaq === i ? null : i)}
+                className="w-full flex items-center justify-between gap-4 px-6 py-4 text-start hover:bg-slate-100/50 dark:hover:bg-slate-800/30 transition-colors"
+              >
+                <span className={`text-sm font-medium ${isDark ? "text-slate-200" : "text-slate-800"}`}>{item.q}</span>
+                <ChevronDown className={`w-4 h-4 text-slate-400 flex-shrink-0 transition-transform ${openFaq === i ? "rotate-180" : ""}`} />
+              </button>
+              {openFaq === i && (
+                <div className={`px-6 pb-4 animate-fade-in`}>
+                  <p className={`text-sm ${isDark ? "text-slate-400" : "text-slate-600"}`}>{item.a}</p>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Troubleshooting */}
+      <div className={`${cardBg} rounded-xl border backdrop-blur-xl overflow-hidden`}>
+        <div className={`p-6 border-b ${isDark ? "border-slate-800" : "border-slate-200"}`}>
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="w-5 h-5 text-amber-500" />
+            <h2 className={`font-semibold text-lg ${isDark ? "text-slate-100" : "text-slate-900"}`}>{t("troubleshooting")}</h2>
+          </div>
+          <p className={`text-xs mt-1 ${isDark ? "text-slate-500" : "text-slate-500"}`}>{t("troubleshootingDesc")}</p>
+        </div>
+        <div className={`divide-y ${isDark ? "divide-slate-800" : "divide-slate-200"}`}>
+          {troubleshootingItems.map((item, i) => (
+            <div key={i}>
+              <button
+                onClick={() => setOpenIssue(openIssue === i ? null : i)}
+                className="w-full flex items-center justify-between gap-4 px-6 py-4 text-start hover:bg-slate-100/50 dark:hover:bg-slate-800/30 transition-colors"
+              >
+                <span className={`text-sm font-medium font-mono ${isDark ? "text-amber-400" : "text-amber-600"}`}>{item.problem}</span>
+                <ChevronDown className={`w-4 h-4 text-slate-400 flex-shrink-0 transition-transform ${openIssue === i ? "rotate-180" : ""}`} />
+              </button>
+              {openIssue === i && (
+                <div className={`px-6 pb-4 animate-fade-in`}>
+                  <p className={`text-sm ${isDark ? "text-slate-400" : "text-slate-600"}`}>{item.solution}</p>
+                </div>
+              )}
             </div>
           ))}
         </div>

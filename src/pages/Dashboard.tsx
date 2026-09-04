@@ -10,6 +10,8 @@ import {
   Cpu,
   DollarSign,
   Heart,
+  Gauge,
+  BarChart3,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useApp } from "@/contexts/AppContext";
@@ -148,6 +150,33 @@ export function Dashboard() {
     return { name: p.name, status: p.status, healthScore, total, errors };
   });
 
+  // Latency distribution (P50, P90, P99) from recent logs
+  const successTimes = recentLogs
+    .filter((l) => l.status === "success" && l.response_time != null)
+    .map((l) => l.response_time as number)
+    .sort((a, b) => a - b);
+  function percentile(sorted: number[], p: number): number {
+    if (sorted.length === 0) return 0;
+    const idx = Math.ceil((p / 100) * sorted.length) - 1;
+    return sorted[Math.max(0, idx)] ?? 0;
+  }
+  const latencyData = [
+    { label: t("p50"), value: percentile(successTimes, 50) },
+    { label: t("p90"), value: percentile(successTimes, 90) },
+    { label: t("p99"), value: percentile(successTimes, 99) },
+  ];
+
+  // Load balancing: requests per provider
+  const loadBalancingData = providers
+    .filter((p) => p.status === "active")
+    .map((p) => {
+      const pStats = stats.filter((s) => s.provider === p.name);
+      return {
+        label: p.name.length > 12 ? p.name.slice(0, 10) + "..." : p.name,
+        value: pStats.reduce((sum, s) => sum + s.requests_count, 0),
+      };
+    });
+
   return (
     <div className="space-y-6 animate-slide-up">
       <div>
@@ -262,6 +291,42 @@ export function Dashboard() {
               </div>
             ))}
           </div>
+        </div>
+      </div>
+
+      {/* Latency distribution + Load balancing */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className={`${cardBg} rounded-xl p-6 backdrop-blur-xl border`}>
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className={`font-semibold text-lg ${isDark ? "text-slate-100" : "text-slate-900"}`}>{t("latencyDistribution")}</h2>
+              <p className={`text-xs mt-1 ${textSecondary}`}>{t("latencyDistributionDesc")}</p>
+            </div>
+            <Gauge className={`w-5 h-5 ${isDark ? "text-slate-600" : "text-slate-400"}`} />
+          </div>
+          <div className="grid grid-cols-3 gap-4">
+            {latencyData.map((d) => (
+              <div key={d.label} className={`p-4 rounded-lg ${isDark ? "bg-slate-800/50" : "bg-slate-100"} text-center`}>
+                <p className="text-xs text-slate-500 mb-1">{d.label}</p>
+                <p className="text-2xl font-bold text-cyan-500">{d.value.toFixed(2)}s</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className={`${cardBg} rounded-xl p-6 backdrop-blur-xl border`}>
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className={`font-semibold text-lg ${isDark ? "text-slate-100" : "text-slate-900"}`}>{t("loadBalancing")}</h2>
+              <p className={`text-xs mt-1 ${textSecondary}`}>{t("loadBalancingDesc")}</p>
+            </div>
+            <BarChart3 className={`w-5 h-5 ${isDark ? "text-slate-600" : "text-slate-400"}`} />
+          </div>
+          {loadBalancingData.length === 0 || loadBalancingData.every((d) => d.value === 0) ? (
+            <p className={`text-sm text-center py-12 ${textSecondary}`}>{t("noUsageData")}</p>
+          ) : (
+            <BarChart data={loadBalancingData} color={isDark ? "#10b981" : "#059669"} height={160} />
+          )}
         </div>
       </div>
 

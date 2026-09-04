@@ -12,23 +12,30 @@ import {
   Sun,
   Languages,
   FlaskConical,
+  Users,
+  ShieldCheck,
 } from "lucide-react";
 import type { Page } from "@/types";
 import type { TranslationKey } from "@/i18n";
 import { useApp, AppProvider } from "@/contexts/AppContext";
 import { CommandPalette } from "@/components/CommandPalette";
+import { NotificationsBell } from "@/components/NotificationsBell";
 import { Dashboard } from "@/pages/Dashboard";
 import { Providers } from "@/pages/Providers";
 import { Logs } from "@/pages/Logs";
 import { SettingsPage } from "@/pages/Settings";
 import { ApiDocs } from "@/pages/ApiDocs";
 import { Playground } from "@/pages/Playground";
+import { Users as UsersPage } from "@/pages/Users";
+import { AuditLogs } from "@/pages/AuditLogs";
 
 const navItems: { id: Page; labelKey: TranslationKey; icon: typeof LayoutDashboard }[] = [
   { id: "dashboard", labelKey: "dashboard", icon: LayoutDashboard },
   { id: "providers", labelKey: "providers", icon: Server },
   { id: "requestLogs", labelKey: "requestLogs", icon: ScrollText },
   { id: "playground", labelKey: "playground", icon: FlaskConical },
+  { id: "users", labelKey: "users", icon: Users },
+  { id: "auditLogs", labelKey: "auditLogs", icon: ShieldCheck },
   { id: "apiDocs", labelKey: "apiDocs", icon: Code2 },
   { id: "settings", labelKey: "settings", icon: Settings },
 ];
@@ -39,9 +46,7 @@ function AppContent() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
 
-  useEffect(() => {
-    setSidebarOpen(false);
-  }, [page]);
+  useEffect(() => { setSidebarOpen(false); }, [page]);
 
   useEffect(() => {
     function handler(e: KeyboardEvent) {
@@ -72,6 +77,7 @@ function AppContent() {
           <span className={`font-semibold text-sm ${textPrimary}`}>{t("appName")}</span>
         </div>
         <div className="flex items-center gap-1">
+          <NotificationsBell />
           <button onClick={toggleLang} className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" title={t("language")}>
             <Languages className="w-4 h-4 text-slate-500" />
           </button>
@@ -100,7 +106,7 @@ function AppContent() {
           </div>
         </div>
 
-        <nav className="flex-1 px-3 py-4 space-y-1">
+        <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto scrollbar-thin">
           {navItems.map((item) => {
             const Icon = item.icon;
             const active = page === item.id;
@@ -119,8 +125,9 @@ function AppContent() {
           })}
         </nav>
 
-        {/* Desktop theme/lang controls */}
+        {/* Desktop theme/lang/notifications controls */}
         <div className={`hidden lg:flex items-center gap-2 px-3 py-3 border-t ${isDark ? "border-slate-800" : "border-slate-200"}`}>
+          <NotificationsBell />
           <button onClick={toggleLang} className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs font-medium text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
             <Languages className="w-3.5 h-3.5" />
             {lang === "en" ? "FA" : "EN"}
@@ -151,6 +158,8 @@ function AppContent() {
           {page === "providers" && <Providers />}
           {page === "requestLogs" && <Logs />}
           {page === "playground" && <Playground />}
+          {page === "users" && <UsersPage />}
+          {page === "auditLogs" && <AuditLogs />}
           {page === "apiDocs" && <ApiDocs />}
           {page === "settings" && <SettingsPage />}
         </div>

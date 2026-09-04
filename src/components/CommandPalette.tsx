@@ -24,7 +24,7 @@ export function CommandPalette({ open, onClose, onNavigate }: CommandPaletteProp
   const [selectedIdx, setSelectedIdx] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const pages: Page[] = ["dashboard", "providers", "requestLogs", "settings", "apiDocs", "playground"];
+  const pages: Page[] = ["dashboard", "providers", "requestLogs", "playground", "users", "auditLogs", "apiDocs", "settings"];
   const pageLabelMap: Record<Page, TranslationKey> = {
     dashboard: "dashboard",
     providers: "providers",
@@ -32,6 +32,8 @@ export function CommandPalette({ open, onClose, onNavigate }: CommandPaletteProp
     settings: "settings",
     apiDocs: "apiDocs",
     playground: "playground",
+    users: "users",
+    auditLogs: "auditLogs",
   };
 
   const commands: CommandItem[] = [

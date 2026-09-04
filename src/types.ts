@@ -43,4 +43,34 @@ export interface UsageStat {
   updated_at: string;
 }
 
-export type Page = "dashboard" | "providers" | "requestLogs" | "settings" | "apiDocs" | "playground";
+export interface GatewayUser {
+  id: string;
+  name: string;
+  email: string;
+  role: "admin" | "viewer";
+  status: "active" | "disabled";
+  api_key: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AuditLog {
+  id: string;
+  action: string;
+  entity: string;
+  entity_id: string | null;
+  details: string | null;
+  performed_by: string;
+  created_at: string;
+}
+
+export interface Notification {
+  id: string;
+  type: "info" | "warning" | "error" | "success";
+  title: string;
+  message: string | null;
+  read: boolean;
+  created_at: string;
+}
+
+export type Page = "dashboard" | "providers" | "requestLogs" | "settings" | "apiDocs" | "playground" | "users" | "auditLogs";
